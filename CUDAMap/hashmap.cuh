@@ -23,7 +23,7 @@ struct HashFunc {
     size_t operator()(const K& key) const
     {
         size_t hash = std::hash<size_t>()(key);
-        return hash << 1;
+        return (hash << 1) % 9973; //TEMP!
     }
 };
 
@@ -42,31 +42,34 @@ class HashMap {
         }
 
         //Associative Array Logic
-        size_t FindHash(const size_t& hash) {
-            for (size_t i = 0; i < size_; i++) {
-                if ((unsigned long) hashes_[i] == (unsigned long) hash) {
-                    return i;
-                }
+        long FindHash(const long& hash) {
+            if (hash > 10000) { //TEMP
+                std::cout << hash << std::endl;
+                return -1;
             }
-            return -1;
+            return hashes_[hash];
         }
 
         //General Data Accessor Methods
 
         void Get(const K& key, V& value) {
             size_t hash = hash_func_(key);
-            size_t hash_pos = FindHash(hash);
+            long hash_pos = FindHash(hash);
+            std::cout << hash << std::endl;
+            std::cout << hashes_[hash] << std::endl;
             if (hash_pos == -1) {
                 return;
             }
+            std::cout << table_[hash_pos]->value_ << std::endl;
             value = table_[hash_pos]->value_;
         }
 
         void Put(const K& key, const V& value) {
             size_t hash = hash_func_(key);
-            size_t hash_pos = FindHash(hash);
+            std::cout << hash << std::endl;
+            long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
-                hashes_.push_back(hash);
+                hashes_[hash] = size_;
 
                 HashNode<K, V>* node = nullptr;
                 cudaMallocManaged(&node, (size_t) sizeof(HashNode<K,V>));
@@ -88,12 +91,12 @@ class HashMap {
 
         void Remove(const K& key) {
             size_t hash = hash_func_(key);
-            size_t hash_pos = FindHash(hash);
+            long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
                 return;
             }
-            table_.erase(hash_pos);
-            hashes_.erase(hash_pos);
+            table_.erase(table_.begin, hash_pos);
+            hashes_.erase(hashes_.begin() + hash_pos);
 
             cudaFree(allocs_[hash_pos].get());
             allocs_.erase(hash_pos);
@@ -129,11 +132,11 @@ class HashMap {
             return *this;
         }
 
-        unsigned int size_ = 0;
+        long size_ = 0;
 
     private:
         thrust::universal_vector<HashNode<K, V>*> table_;
-        thrust::universal_vector<size_t> hashes_;
+        thrust::universal_vector<long> hashes_ = thrust::universal_vector<long>(10000, -1); //TEMP!
 
         vector<reference_wrapper<HashNode<K, V>*>> allocs_;
 
