@@ -38,9 +38,10 @@ class HashMap {
             cudaError_t cuda_status = cudaSuccess;
             CudaMemoryFreer<HashNode<K, V>>(allocs_);
             function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
-            cuda_status = WrapperFunction(sync_func, "DestroyManagedMemory", "~HashMap()", cuda_status, "");
+            cuda_status = WrapperFunction(sync_func, "DestroyManagedMemory", "~HashMap", cuda_status, "");
         }
 
+        //Associative Array Logic
         size_t FindHash(const size_t& hash) {
             for (size_t i = 0; i < size_; i++) {
                 if ((unsigned long) hashes_[i] == (unsigned long) hash) {
@@ -55,20 +56,16 @@ class HashMap {
         void Get(const K& key, V& value) {
             size_t hash = hash_func_(key);
             size_t hash_pos = FindHash(hash);
-            HashNode<K, V>* entry = table_[hash_pos];
-
-            while (entry) {
-                if (entry->key_ == key) {
-                    value = entry->value_;
-                    return;
-                }
-                entry = entry->next_;
+            if (hash_pos == -1) {
+                return;
             }
+            value = table_[hash_pos]->value_;
         }
 
         void Put(const K& key, const V& value) {
-            unsigned long hash = hash_func_(key);
-            if (size_ == 0 || FindHash(hash) == -1) {
+            size_t hash = hash_func_(key);
+            size_t hash_pos = FindHash(hash);
+            if (hash_pos == -1) {
                 hashes_.push_back(hash);
 
                 HashNode<K, V>* node = nullptr;
@@ -82,56 +79,32 @@ class HashMap {
 
                 node->key_ = key;
                 node->value_ = value;
-
-                size_++;
-                return;
-            }
-            HashNode<K, V>* prev = nullptr,
-                *entry = table_[hash];
-
-            while (entry && entry->key_ != key) {
-                prev = entry;
-                entry = entry->next_;
-            }
-
-            if (!entry) {
-                entry = new HashNode<K, V>(key, value);
-                if (!prev) {
-                    table_[hash] = entry;
-                }
-                else {
-                    prev->next_ = entry;
-                }
             }
             else {
-                entry->value_ = value;
+                table_[hash_pos]->value_ = value;
             }
             size_++;
         }
 
         void Remove(const K& key) {
-            unsigned long hash = hash_func_(key);
-            HashNode<K, V>* prev = nullptr,
-                *entry = table_[hash];
-
-            while (entry && entry->key_ != key) {
-                prev = entry;
-                entry = entry->next_;
-            }
-
-            if (!entry) {
+            size_t hash = hash_func_(key);
+            size_t hash_pos = FindHash(hash);
+            if (hash_pos == -1) {
                 return;
             }
-            if (!prev) {
-                table_[hash] = entry->next_;
-            }
-            else {
-                prev->next_ = entry->next_;
-            }
-            delete entry;
+            table_.erase(hash_pos);
+            hashes_.erase(hash_pos);
+
+            cudaFree(allocs_[hash_pos].get());
+            allocs_.erase(hash_pos);
+
+            function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
+            WrapperFunction(sync_func, "DestroyManagedMemory", "Remove", cuda_status, "");
+
             size_--;
         }
 
+        //Output Logic
         string ToString() {
             string output;
             for (const auto* node : table_) {
@@ -140,14 +113,14 @@ class HashMap {
             return output;
         }
 
-        //Overloads
-
+        //Accessor Overload
         V& operator[](const K& key) {
             V value;
             Get(key, value);
             return value;
         }
 
+        //Assignment Operator Overload (Shallow Copy)
         HashMap& operator=(const HashMap& src) {
             if (src == *this) {
                 return *this;
@@ -161,6 +134,8 @@ class HashMap {
     private:
         thrust::universal_vector<HashNode<K, V>*> table_;
         thrust::universal_vector<size_t> hashes_;
+
         vector<reference_wrapper<HashNode<K, V>*>> allocs_;
+
         F hash_func_;
 };

@@ -19,6 +19,4 @@ class HashNode {
 
         K key_;
         V value_;
-
-        HashNode* next_ = nullptr;
 };
