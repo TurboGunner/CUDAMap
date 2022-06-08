@@ -30,3 +30,5 @@
 *.exe
 *.out
 *.app
+/CUDAMap/x64/Debug
+/.vs/CUDAMap/v17

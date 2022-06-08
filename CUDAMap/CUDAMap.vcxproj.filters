@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="cuda">
+      <UniqueIdentifier>{7c769ced-bd23-4b82-a06c-245afaaaf46d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="includes">
+      <UniqueIdentifier>{34e819f5-7071-4276-920a-32c663d46eaa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="includes\cuda">
+      <UniqueIdentifier>{aa1f6dea-6436-4825-b2fe-d1e8a15d7e1c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="cpp">
+      <UniqueIdentifier>{bbce11fc-fb0e-4005-a1cf-b9a9e5331e68}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="hashnode.cuh">
+      <Filter>includes\cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="hashmap.cuh">
+      <Filter>includes\cuda</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="cuda_handler.hpp">
+      <Filter>includes</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
