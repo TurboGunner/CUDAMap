@@ -12,76 +12,9 @@
 
 using std::string;
 using std::vector;
-using std::reference_wrapper;
 using std::function;
 
-inline void CudaExceptionHandler(cudaError_t cuda_status, string error_message) {
-    if (cuda_status != cudaSuccess) {
-        throw std::invalid_argument(error_message);
-    }
-}
-
-inline void CudaMemoryFreer(void* ptrs[]) {
-    try {
-        for (size_t i = 0; i < sizeof(ptrs); i++) {
-            cudaFree(ptrs[i]);
-        }
-    }
-    catch (std::exception e) {
-        printf(e.what());
-    }
-}
-
-template <typename T>
-inline void CudaMemoryFreer(vector<reference_wrapper<T*>>& ptrs) {
-    try {
-        for (size_t i = 0; i < ptrs.size(); i++) {
-            cudaFree(ptrs.at(i).get());
-        }
-    }
-    catch (std::exception e) {
-        printf(e.what());
-    }
-}
-
-template <typename T>
-inline void CudaMemoryAllocator(vector<reference_wrapper<T*>>& ptrs, size_t size_alloc, size_t element_alloc) { //0 if used combined alloc
-    for (size_t i = 0; i < ptrs.size(); i++) {
-        if (ptrs.at(i).get() == nullptr) {
-            cudaError_t output_status = cudaMalloc((void**)&ptrs.at(i).get(), size_alloc * element_alloc);
-            std::cout << "Allocated " << size_alloc * element_alloc << " bytes!" << std::endl;
-            CudaExceptionHandler(output_status, "cudaMalloc failed!");
-        }
-    }
-}
-
-inline void MemoryFreer(void* ptrs[], size_t element_alloc) {
-    std::cout << sizeof(ptrs) << std::endl;
-    for (size_t i = 0; i < sizeof(ptrs) * element_alloc; i++) {
-        free(ptrs[i]);
-    }
-}
-
-template <typename T>
-inline void MemoryFreer(vector<reference_wrapper<T*>>& ptrs) {
-    for (size_t i = 0; i < ptrs.size(); i++) {
-        free(ptrs.at(i).get());
-    }
-}
-
-inline cudaError_t CopyFunction(string err_msg, void* tgt, const void* src, cudaMemcpyKind mem_copy_type,
-    cudaError_t error, size_t size_alloc, size_t element_alloc) {
-
-    if (error == cudaSuccess) {
-        error = cudaMemcpy(tgt, src, size_alloc * element_alloc, mem_copy_type);
-        if (error != cudaSuccess) {
-            std::cout << err_msg << " due to error code " << error << "\n" << std::endl;
-            std::cout << "Error Stacktrace: " << cudaGetErrorString(error) << "\n" << std::endl;
-        }
-    }
-    return error;
-}
-
+//Consolidates calls and error handling in the main or calling kernel functions
 inline cudaError_t WrapperFunction(function<cudaError_t()> func, string operation_name, string method_name, cudaError_t error, string optional_args) {
     cudaError_t cuda_status = error;
     if (cuda_status != cudaSuccess) {
@@ -96,14 +29,4 @@ inline cudaError_t WrapperFunction(function<cudaError_t()> func, string operatio
         }
     }
     return cuda_status;
-}
-
-inline void ThreadAllocator(dim3& blocks, dim3& threads, const unsigned int& length, const unsigned int& threads_per_block) {
-    unsigned int threads_per_dim = (int)sqrt(threads_per_block);
-    unsigned int block_count = ((length + threads_per_dim) - 1) / (threads_per_dim);
-
-    threads = dim3(threads_per_dim, threads_per_dim);
-    blocks = dim3(block_count, block_count);
-
-    std::cout << "Allocated " << threads.x * threads.y * block_count * block_count << " threads!" << std::endl;
 }
