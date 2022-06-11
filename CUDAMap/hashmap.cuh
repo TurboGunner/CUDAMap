@@ -20,10 +20,10 @@ using std::reference_wrapper;
 
 template <typename K>
 struct HashFunc {
-    size_t operator()(const K& key) const
+    __host__ __device__ size_t operator()(const K& key, size_t size) const
     {
         size_t hash = std::hash<size_t>()(key);
-        return (hash << 1) % 9973; //TEMP!
+        return (hash << 1) % size;
     }
 };
 
@@ -31,7 +31,18 @@ template <typename K, typename V, typename F = HashFunc<K>>
 class HashMap {
     public:
         //Constructor
-        HashMap() = default;
+        HashMap() {
+            hash_table_size_ = DEFAULT_SIZE;
+            hashes_ = thrust::universal_vector<long>(hash_table_size_, -1);
+        }
+
+        HashMap(const size_t& hash_table_size) {
+            if (hash_table_size < 1) {
+                throw std::invalid_argument("The input size for the hash table should be at least 1!");
+            }
+            hash_table_size_ = hash_table_size;
+            hashes_ = thrust::universal_vector<long>(hash_table_size_, -1);
+        }
 
         //Destructor
         ~HashMap() {
@@ -42,9 +53,8 @@ class HashMap {
         }
 
         //Associative Array Logic
-        long FindHash(const long& hash) {
-            if (hash > 10000) { //TEMP
-                std::cout << hash << std::endl;
+        __host__ __device__ long FindHash(const long& hash) {
+            if (hash > hash_table_size_) {
                 return -1;
             }
             return hashes_[hash];
@@ -52,21 +62,17 @@ class HashMap {
 
         //General Data Accessor Methods
 
-        void Get(const K& key, V& value) {
-            size_t hash = hash_func_(key);
+        __host__ __device__ void Get(const K& key, V& value) {
+            size_t hash = hash_func_(key, hash_table_size_);
             long hash_pos = FindHash(hash);
-            std::cout << hash << std::endl;
-            std::cout << hashes_[hash] << std::endl;
             if (hash_pos == -1) {
                 return;
             }
-            std::cout << table_[hash_pos]->value_ << std::endl;
             value = table_[hash_pos]->value_;
         }
 
-        void Put(const K& key, const V& value) {
-            size_t hash = hash_func_(key);
-            std::cout << hash << std::endl;
+        __host__ __device__ void Put(const K& key, const V& value) {
+            size_t hash = hash_func_(key, hash_table_size_);
             long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
                 hashes_[hash] = size_;
@@ -89,8 +95,8 @@ class HashMap {
             size_++;
         }
 
-        void Remove(const K& key) {
-            size_t hash = hash_func_(key);
+        __host__ __device__ void Remove(const K& key) {
+            size_t hash = hash_func_(key, hash_table_size_);
             long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
                 return;
@@ -99,7 +105,7 @@ class HashMap {
             hashes_.erase(hashes_.begin() + hash_pos);
 
             cudaFree(allocs_[hash_pos].get());
-            allocs_.erase(hash_pos);
+            allocs_.erase(allocs_.begin() + hash_pos);
 
             function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
             WrapperFunction(sync_func, "DestroyManagedMemory", "Remove", cuda_status, "");
@@ -116,11 +122,17 @@ class HashMap {
             return output;
         }
 
-        //Accessor Overload
-        V& operator[](const K& key) {
+        //Accessor Overloads
+
+        __host__ __device__ V& operator[](const K& key) {
             V value;
             Get(key, value);
             return value;
+        }
+
+        __host__ __device__ V& operator[](const int& index) {
+            V value;
+            return table_[index]->value_;
         }
 
         //Assignment Operator Overload (Shallow Copy)
@@ -133,12 +145,15 @@ class HashMap {
         }
 
         long size_ = 0;
+        size_t hash_table_size_ = 0;
 
     private:
         thrust::universal_vector<HashNode<K, V>*> table_;
-        thrust::universal_vector<long> hashes_ = thrust::universal_vector<long>(10000, -1); //TEMP!
+        thrust::universal_vector<long> hashes_;
 
         vector<reference_wrapper<HashNode<K, V>*>> allocs_;
 
         F hash_func_;
+
+        const size_t DEFAULT_SIZE = 10000;
 };

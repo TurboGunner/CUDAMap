@@ -31,6 +31,7 @@ inline void CudaMemoryFreer(void* ptrs[]) {
         printf(e.what());
     }
 }
+
 template <typename T>
 inline void CudaMemoryFreer(vector<reference_wrapper<T*>>& ptrs) {
     try {
