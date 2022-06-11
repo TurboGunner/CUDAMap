@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="hashnode.cuh">
-      <Filter>includes\cuda</Filter>
-    </ClInclude>
     <ClInclude Include="hashmap.cuh">
       <Filter>includes\cuda</Filter>
     </ClInclude>
