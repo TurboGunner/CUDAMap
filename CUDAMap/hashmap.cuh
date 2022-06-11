@@ -5,12 +5,8 @@
 #include <stdexcept>
 #include <string>
 #include <iostream>
-#include <functional>
-#include <vector>
 
 using std::string;
-using std::function;
-using std::vector;
 
 template <typename K>
 struct HashFunc {
@@ -80,7 +76,7 @@ class HashMap {
             size_t hash = hash_func_(key, hash_table_size_);
             long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
-                printf(stderr, "%s", "Invalid Index!\n");
+                printf("%s", "Invalid Index!\n");
             }
             return table_[hash_pos];
             
@@ -90,7 +86,7 @@ class HashMap {
         __host__ __device__ V Get(const int& index) {
         #ifdef __CUDA_ARCH__
             if (index < 0 || index >= size_) {
-                printf(stderr, "%s", "Invalid Index!\n");
+                printf("%s", "Invalid Index!\n");
             }
         #else
             if (index < 0 || index >= size_) {
