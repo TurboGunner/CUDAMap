@@ -100,7 +100,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="hashmap.cuh" />
-    <ClInclude Include="hashnode.cuh" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cuda_handler.hpp" />

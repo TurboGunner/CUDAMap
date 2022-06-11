@@ -1,13 +1,16 @@
 #include "device_launch_parameters.h"
 #include "hashmap.cuh"
 
+#include "cuda_handler.hpp"
+
 #include <iostream>
 
 #include <stdio.h>
 
 __global__ void TestKernel(HashMap<float, float, HashFunc<float>>* map)
 {
-    printf("%f", map->Get(4.0f));
+    printf("%f\n", map->Get(4.0f));
+    printf("%f\n", map->Get(3));
 }
 
 int main()

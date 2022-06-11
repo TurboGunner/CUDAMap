@@ -8,8 +8,6 @@
 #include <string>
 #include <iostream>
 
-#include <math.h>
-
 using std::string;
 using std::vector;
 using std::function;
