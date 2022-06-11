@@ -3,7 +3,6 @@
 #include "cuda_runtime.h"
 
 #include "cuda_handler.hpp"
-#include "hashnode.cuh"
 
 #include <stdexcept>
 #include <string>
@@ -22,7 +21,7 @@ template <typename K>
 struct HashFunc {
     __host__ __device__ size_t operator()(const K& key, size_t size) const
     {
-        size_t hash = std::hash<size_t>()(key);
+        size_t hash = (size_t) (key);
         return (hash << 1) % size;
     }
 };
@@ -33,7 +32,7 @@ class HashMap {
         //Constructor
         HashMap() {
             hash_table_size_ = DEFAULT_SIZE;
-            hashes_ = thrust::universal_vector<long>(hash_table_size_, -1);
+            Initialization();
         }
 
         HashMap(const size_t& hash_table_size) {
@@ -41,58 +40,73 @@ class HashMap {
                 throw std::invalid_argument("The input size for the hash table should be at least 1!");
             }
             hash_table_size_ = hash_table_size;
-            hashes_ = thrust::universal_vector<long>(hash_table_size_, -1);
+            Initialization();
+        }
+
+        void Initialization() {
+            cudaMallocManaged(&table_, (size_t)sizeof(V) * hash_table_size_);
+            cudaMallocManaged(&hashes_, (size_t) sizeof(long) * hash_table_size_);
+        }
+
+        void Synchronize() {
+            cudaError_t cuda_status = cudaSuccess;
+
+            function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
+            cuda_status = WrapperFunction(sync_func, "HashMap", "HashMap", cuda_status, "");
         }
 
         //Destructor
         ~HashMap() {
-            cudaError_t cuda_status = cudaSuccess;
-            CudaMemoryFreer<HashNode<K, V>>(allocs_);
-            function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
-            cuda_status = WrapperFunction(sync_func, "DestroyManagedMemory", "~HashMap", cuda_status, "");
+            //Synchronize();
+            cudaFree(table_);
+            cudaFree(hashes_);
+        }
+
+        //Memory Allocation/Deallocation Unified Overloads
+        void* operator new(size_t size) {
+            void* ptr;
+            cudaMallocManaged(&ptr, sizeof(HashMap<K, V, HashFunc<K>>)); //Allocates the size of the 
+            cudaDeviceSynchronize();
+            return ptr;
+        }
+
+        void operator delete(void* ptr) {
+            cudaDeviceSynchronize();
+            cudaFree(ptr);
         }
 
         //Associative Array Logic
         __host__ __device__ long FindHash(const long& hash) {
-            if (hash > hash_table_size_) {
+            if (hash > hash_table_size_ || hashes_[hash] == 0) {
                 return -1;
             }
-            return hashes_[hash];
+            return hashes_[hash] - 1;
         }
 
         //General Data Accessor Methods
 
-        __host__ __device__ void Get(const K& key, V& value) {
+        __host__ __device__ V Get(const K& key) {
             size_t hash = hash_func_(key, hash_table_size_);
             long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
-                return;
+                printf("Invalid Index!");
             }
-            value = table_[hash_pos]->value_;
+            return table_[hash_pos];
+            
         }
 
-        __host__ __device__ void Put(const K& key, const V& value) {
+        __host__ void Put(const K& key, const V& value) {
             size_t hash = hash_func_(key, hash_table_size_);
             long hash_pos = FindHash(hash);
             if (hash_pos == -1) {
-                hashes_[hash] = size_;
+                hashes_[hash] = size_ + 1;
 
-                HashNode<K, V>* node = nullptr;
-                cudaMallocManaged(&node, (size_t) sizeof(HashNode<K,V>));
-
-                function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
-                WrapperFunction(sync_func, "MallocManagedMemory", "Put", cudaSuccess, "");
-
-                table_.push_back(node);
-                allocs_.push_back(node);
-
-                node->key_ = key;
-                node->value_ = value;
+                table_[size_] = value;
+                size_++;
             }
             else {
-                table_[hash_pos]->value_ = value;
+                table_[hash_pos] = value;
             }
-            size_++;
         }
 
         __host__ __device__ void Remove(const K& key) {
@@ -101,14 +115,11 @@ class HashMap {
             if (hash_pos == -1) {
                 return;
             }
-            table_.erase(table_.begin, hash_pos);
-            hashes_.erase(hashes_.begin() + hash_pos);
 
-            cudaFree(allocs_[hash_pos].get());
-            allocs_.erase(allocs_.begin() + hash_pos);
+            table_[hash_pos] = 0;
+            hashes_[hash] = -1;
 
-            function<cudaError_t()> sync_func = []() { return cudaDeviceSynchronize(); };
-            WrapperFunction(sync_func, "DestroyManagedMemory", "Remove", cuda_status, "");
+            Synchronize();
 
             size_--;
         }
@@ -124,14 +135,11 @@ class HashMap {
 
         //Accessor Overloads
 
-        __host__ __device__ V& operator[](const K& key) {
-            V value;
-            Get(key, value);
-            return value;
+        __host__ __device__ V operator[](const K& key) {
+            return Get(key);
         }
 
         __host__ __device__ V& operator[](const int& index) {
-            V value;
             return table_[index]->value_;
         }
 
@@ -145,13 +153,11 @@ class HashMap {
         }
 
         long size_ = 0;
-        size_t hash_table_size_ = 0;
+        size_t hash_table_size_;
 
     private:
-        thrust::universal_vector<HashNode<K, V>*> table_;
-        thrust::universal_vector<long> hashes_;
-
-        vector<reference_wrapper<HashNode<K, V>*>> allocs_;
+        V* table_;
+        long* hashes_;
 
         F hash_func_;
 
